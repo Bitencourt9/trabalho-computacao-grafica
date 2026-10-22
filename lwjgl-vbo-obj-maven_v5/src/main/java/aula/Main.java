@@ -10,6 +10,7 @@ import aula.md2.Skins;
 import aula.util.TextureLoader;
 
 import java.io.File;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.ArrayList;
 
@@ -25,6 +26,22 @@ public class Main {
 	static int[] texturasCorpo = new int[0];
 	static int skinIndice = 0;
 	static boolean girando = true;
+
+	// Lê a imagem e cria a textura. Se o arquivo não for uma imagem válida,
+	// avisa no console e devolve 0 (sem textura), sem derrubar o programa.
+	static int carregarTextura(File arquivo) {
+		try {
+			BufferedImage imagem = ImageIO.read(arquivo);   // null se o formato não for reconhecido
+			if (imagem == null) {
+				System.out.println("Aviso: imagem inválida, ignorada: " + arquivo);
+				return 0;
+			}
+			return TextureLoader.loadTexture(imagem);
+		} catch (IOException e) {
+			System.out.println("Aviso: não foi possível ler a imagem " + arquivo + ": " + e.getMessage());
+			return 0;
+		}
+	}
 
 	public static void main(String[] args) throws Exception {
 
@@ -60,7 +77,7 @@ public class Main {
 			ArrayList<File> skins = Skins.listarSkinsCorpo(pastaSkins);
 			texturasCorpo = new int[skins.size()];
 			for (int i = 0; i < skins.size(); i++)
-				texturasCorpo[i] = TextureLoader.loadTexture(ImageIO.read(skins.get(i)));
+				texturasCorpo[i] = carregarTextura(skins.get(i));
 			if (skins.isEmpty()) {
 				System.out.println("Aviso: nenhuma skin em " + pastaSkins + " (sem textura)");
 				corpo.textura = 0;
@@ -70,7 +87,7 @@ public class Main {
 			}
 			File skinArma = Skins.acharSkinArma(pastaSkins);
 			if (arma != null && skinArma != null)
-				arma.textura = TextureLoader.loadTexture(ImageIO.read(skinArma));
+				arma.textura = carregarTextura(skinArma);
 
 			animador = new Animador(Md2Animacao.montarLista(corpo.arquivo.nomesQuadros));
 
