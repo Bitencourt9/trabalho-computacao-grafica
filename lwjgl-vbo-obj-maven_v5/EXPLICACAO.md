@@ -86,7 +86,7 @@ vale A = 1.0 no quadro 41 e B = 3.0 no quadro 42, com t = 0.35: 1.0 + (3.0 − 1
 Isso é feito para os 358 × 3 números do quadro.
 
 Com a interpolação **desligada** (tecla `I`), `Animador.fracao()` devolve sempre 0, então o
-resultado é sempre A: o modelo "pula" de pose em pose, 10 vezes por segundo. É assim que se vê
+resultado é sempre A: o modelo "pula" de pose em pose, 10 vezes por segundo (na velocidade padrão). É assim que se vê
 a diferença.
 
 ## 6. Tempo em keyframes
@@ -123,8 +123,9 @@ não sabe interpolar sozinha. `draw` usa `glVertexPointer`, `glTexCoordPointer` 
 
 O MD2 guarda o UV em **pixels** (`short s, t`). Em `Md2Arquivo`, `u = s / larguraSkin` e
 `v = t / alturaSkin`, ficando entre 0 e 1. O `v` **não é invertido**: o `TextureLoader` envia a
-linha de cima da imagem como t = 0, que é a mesma convenção do MD2. Invertê-lo deixaria a
-textura de cabeça para baixo.
+linha de cima da imagem como t = 0, que é a mesma convenção do MD2. Invertê-lo (`1 - v`) faria
+cada triângulo amostrar a região espelhada na vertical do atlas da skin, e a textura sairia
+embaralhada (partes erradas da imagem em cada triângulo).
 
 Em `Main`, `Skins.listarSkinsCorpo` lista as imagens da pasta `skins/` (os nomes de skin
 gravados no cabeçalho do MD2 não batem com os arquivos); `Skins.indiceInicial` tenta começar
@@ -135,15 +136,17 @@ tecla `T` só troca `corpo.textura`. A arma usa `weapon.jpg`.
 
 | Quero... | Onde |
 |---|---|
-| trocar o modelo | passar o caminho em `-Dexec.args=...`, ou mudar o caminho padrão em `Main.main` (variável `caminho`); precisa de `skins/` ao lado |
+| trocar o modelo | passar o caminho em `-Dexec.args=...`, ou mudar o caminho padrão em `Main.main` (variável `caminho`); `skins/` ao lado é opcional (sem ela o modelo é desenhado sem textura, com aviso no console) |
 | mudar a velocidade padrão | `Animador`, campo `velocidade` (e os limites em `aumentarVelocidade` / `diminuirVelocidade`) |
 | adicionar uma tecla | `Main`, no `glfwSetKeyCallback`: novo `if (tecla == GLFW_KEY_X)`; se for ação do tempo, crie o método no `Animador` |
-| mudar escala, posição ou câmera | `Main`, sequência de `glTranslatef` / `glRotatef` / `glScalef` (hoje escala 0.07, recuo de 5 e giro base de −150° em Y) e o `glFrustum` |
+| mudar escala, posição ou câmera | `Main`, sequência de `glTranslatef` / `glRotatef` / `glScalef` (hoje escala 0.07, recuo de 5 e giro base de −90° em Y) e o `glFrustum` |
 | desligar a arma | `Main`: remover a chamada `arma.draw()` (ou apagar/renomear `weapon.md2`, aí o `Main` imprime "Sem weapon.md2") |
-| mudar o loop ou o 10 fps | `Animador.atualizar` (`tempo`) |
+| mudar o loop ou a velocidade padrão | loop: `Animador.atualizar` (o `% n`) e `proximoQuadro`; velocidade padrão (10): campo `velocidade` do `Animador` |
 | mudar o fundo | `Main`, `glClearColor` |
 
 Ordem das transformações em `Main`: o código lê de cima para baixo, mas elas valem de baixo
 para cima sobre o modelo: primeiro `-90°` em X (o Quake tem Z para cima), depois a escala 0.07,
-o giro base de −150° em Y (deixa o Ogro de frente para a câmera), a rotação automática
+o giro base de −90° em Y (o MD2 olha para +X; −90° leva +X para +Z, na direção da câmera), a rotação automática
 (`angulo`, tecla `R`), a inclinação de câmera de 20° e, por fim, o recuo de 5 unidades.
+
+Na animação `stand`, entre os quadros 20 e 35 o Ogro vira a cabeça para o lado esquerdo; isso faz parte da animação, não é erro de rotação.

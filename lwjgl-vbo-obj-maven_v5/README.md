@@ -24,7 +24,7 @@ mvn compile exec:java -Dexec.args="caminho/para/modelo.md2"
 O programa espera, na mesma pasta do `.md2`, uma pasta `skins/` com as imagens (`.png`, `.jpg` ou
 `.jpeg`) e, opcionalmente, um `weapon.md2` (a arma, desenhada junto) com `skins/weapon.png` ou
 `skins/weapon.jpg`. Sem `skins/` o modelo aparece sem textura (com aviso no console); sem
-`weapon.md2` aparece só o corpo. Imagens inválidas são ignoradas com um aviso no console.
+`weapon.md2` aparece só o corpo. Imagens inválidas geram um aviso no console, mas a posição continua na lista com textura 0: apertar `T` nela mostra o modelo branco (sem textura) com o nome dessa skin.
 
 No Windows, também é possível abrir o projeto como **Maven Project** no IntelliJ ou Eclipse e executar `aula.Main`.
 

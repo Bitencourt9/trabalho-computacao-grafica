@@ -67,9 +67,15 @@ public class Main {
 			Md2Model corpo = new Md2Model(caminho);
 			Md2Model arma = null;
 			File arquivoArma = new File(pasta, "weapon.md2");
-			if (arquivoArma.isFile())
+			if (arquivoArma.isFile()) {
 				arma = new Md2Model(arquivoArma.getPath());
-			else
+				// A arma usa os mesmos índices de quadro do corpo: precisa ter o mesmo número de quadros
+				if (arma.arquivo.numQuadros != corpo.arquivo.numQuadros) {
+					System.out.println("Aviso: weapon.md2 tem " + arma.arquivo.numQuadros + " quadros e o corpo tem "
+							+ corpo.arquivo.numQuadros + "; desenhando só o corpo");
+					arma = null;
+				}
+			} else
 				System.out.println("Sem weapon.md2: desenhando só o corpo");
 
 			// Carrega todas as skins de uma vez, começando pela que o cabeçalho pede
@@ -91,9 +97,6 @@ public class Main {
 
 			animador = new Animador(Md2Animacao.montarLista(corpo.arquivo.nomesQuadros));
 
-			final Md2Model corpoFinal = corpo;
-			final ArrayList<File> skinsFinal = skins;
-
 			// Teclas de alternância: agem uma vez por toque (GLFW_PRESS)
 			glfwSetKeyCallback(window, (janela, tecla, scancode, acao, mods) -> {
 				if (acao != GLFW_PRESS)
@@ -105,9 +108,9 @@ public class Main {
 				if (tecla == GLFW_KEY_MINUS || tecla == GLFW_KEY_KP_SUBTRACT) animador.diminuirVelocidade();
 				if (tecla == GLFW_KEY_SPACE) animador.alternarPausa();
 				if (tecla == GLFW_KEY_R) girando = !girando;
-				if (tecla == GLFW_KEY_T && !skinsFinal.isEmpty()) {
-					skinIndice = (skinIndice + 1) % skinsFinal.size();   // dá a volta
-					corpoFinal.textura = texturasCorpo[skinIndice];
+				if (tecla == GLFW_KEY_T && !skins.isEmpty()) {
+					skinIndice = (skinIndice + 1) % skins.size();   // dá a volta
+					corpo.textura = texturasCorpo[skinIndice];
 				}
 				if (tecla == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(janela, true);
 			});
@@ -158,7 +161,7 @@ public class Main {
 				glTranslatef(0, 0, -5);
 				glRotatef(20, 1, 0, 0);          // inclinação fixa da câmera
 				glRotatef(angulo, 0, 1, 0);      // rotação automática (tecla R)
-				glRotatef(-150, 0, 1, 0);        // com angulo 0, o Ogro fica de frente para a câmera
+				glRotatef(-90, 0, 1, 0);         // o MD2 olha para +X; -90° em Y leva +X para +Z (na direção da câmera)
 				glScalef(0.07f, 0.07f, 0.07f);
 				glRotatef(-90, 1, 0, 0);         // Quake tem Z para cima; OpenGL aqui usa Y
 
