@@ -1,121 +1,166 @@
 package aula;
 
-import org.lwjgl.BufferUtils;
-import org.lwjgl.glfw.GLFW;
+import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.opengl.GL;
-import org.lwjgl.system.MemoryStack;
 
-import aula.obj.ObjModel;
+import aula.md2.Animador;
+import aula.md2.Md2Animacao;
+import aula.md2.Md2Model;
+import aula.md2.Skins;
 import aula.util.TextureLoader;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.FloatBuffer;
-import java.nio.IntBuffer;
-import java.nio.file.*;
-import java.util.*;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
 
 import javax.imageio.ImageIO;
-import javax.imageio.ImageReader;
 
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL15.*;
 
 public class Main {
 
+	// Estado que o teclado altera (campos estáticos para o callback enxergar)
+	static Animador animador;
+	static int[] texturasCorpo = new int[0];
+	static int skinIndice = 0;
+	static boolean girando = true;
+
 	public static void main(String[] args) throws Exception {
-		
-		Path path = Paths.get(args.length > 0 ? args[0] : "../objs/x-35_obj.obj");
+
+		String caminho = args.length > 0 ? args[0] : "src/main/resources/md2/ogro/ogro.md2";
+		File pasta = new File(caminho).getAbsoluteFile().getParentFile();   // pasta do modelo
+
 		if (!glfwInit())
 			throw new IllegalStateException("GLFW nao iniciou");
-		
+
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-		long window = glfwCreateWindow(1024, 768, "Aula VBO - OBJ (sem shaders)", 0, 0);
+		long window = glfwCreateWindow(1024, 768, "MD2", 0, 0);
 		if (window == 0)
 			throw new IllegalStateException("Falha ao criar janela");
 		glfwMakeContextCurrent(window);
 		glfwSwapInterval(1);
 		GL.createCapabilities();
 		glEnable(GL_DEPTH_TEST);
-		glActiveTexture(GL_TEXTURE0);
-		
+
 		glClearColor(.5f, .5f, .5f, 1);
 		try {
-			ObjModel mesh = new ObjModel(path.toString());
-			//ObjModel mesh2 = new ObjModel("src/main/resources/models/x-35_obj.obj");
-			
-			System.out.println("mesh "+mesh.drawboundingbox());
-			//System.out.println("mesh "+mesh2.drawboundingbox());
-					
-			BufferedImage img = ImageIO.read(new File("src/main/resources/saida_textura_03___Default.png"));
-			int textureId = TextureLoader.loadTexture(img);
-			BufferedImage img_2 = ImageIO.read(new File("src/main/resources/saida_textura_glass.png"));
-			int textureId2 = TextureLoader.loadTexture(img_2);
-			
-			mesh.setMaterialTexture("03___Default",textureId);
-			mesh.setMaterialTexture("glass",textureId2);
-			
-			
-			System.out.println("Vertices renderizados: " + mesh.f.size() + " | OBJ: " + path);
-			double start = glfwGetTime();
+			// Modelo do corpo (e a arma, se existir weapon.md2 na mesma pasta)
+			Md2Model corpo = new Md2Model(caminho);
+			Md2Model arma = null;
+			File arquivoArma = new File(pasta, "weapon.md2");
+			if (arquivoArma.isFile())
+				arma = new Md2Model(arquivoArma.getPath());
+			else
+				System.out.println("Sem weapon.md2: desenhando só o corpo");
+
+			// Carrega todas as skins de uma vez, começando pela que o cabeçalho pede
+			File pastaSkins = new File(pasta, "skins");
+			ArrayList<File> skins = Skins.listarSkinsCorpo(pastaSkins);
+			texturasCorpo = new int[skins.size()];
+			for (int i = 0; i < skins.size(); i++)
+				texturasCorpo[i] = TextureLoader.loadTexture(ImageIO.read(skins.get(i)));
+			if (skins.isEmpty()) {
+				System.out.println("Aviso: nenhuma skin em " + pastaSkins + " (sem textura)");
+				corpo.textura = 0;
+			} else {
+				skinIndice = Skins.indiceInicial(skins, corpo.arquivo.skins);
+				corpo.textura = texturasCorpo[skinIndice];
+			}
+			File skinArma = Skins.acharSkinArma(pastaSkins);
+			if (arma != null && skinArma != null)
+				arma.textura = TextureLoader.loadTexture(ImageIO.read(skinArma));
+
+			animador = new Animador(Md2Animacao.montarLista(corpo.arquivo.nomesQuadros));
+
+			final Md2Model corpoFinal = corpo;
+			final ArrayList<File> skinsFinal = skins;
+
+			// Teclas de alternância: agem uma vez por toque (GLFW_PRESS)
+			glfwSetKeyCallback(window, (janela, tecla, scancode, acao, mods) -> {
+				if (acao != GLFW_PRESS)
+					return;
+				if (tecla == GLFW_KEY_RIGHT) animador.proximaAnimacao();
+				if (tecla == GLFW_KEY_LEFT) animador.animacaoAnterior();
+				if (tecla == GLFW_KEY_I) animador.alternarInterpolacao();
+				if (tecla == GLFW_KEY_EQUAL || tecla == GLFW_KEY_KP_ADD) animador.aumentarVelocidade();
+				if (tecla == GLFW_KEY_MINUS || tecla == GLFW_KEY_KP_SUBTRACT) animador.diminuirVelocidade();
+				if (tecla == GLFW_KEY_SPACE) animador.alternarPausa();
+				if (tecla == GLFW_KEY_R) girando = !girando;
+				if (tecla == GLFW_KEY_T && !skinsFinal.isEmpty()) {
+					skinIndice = (skinIndice + 1) % skinsFinal.size();   // dá a volta
+					corpoFinal.textura = texturasCorpo[skinIndice];
+				}
+				if (tecla == GLFW_KEY_ESCAPE) glfwSetWindowShouldClose(janela, true);
+			});
+
+			System.out.println("Modelo: " + caminho + " | " + corpo.arquivo.numTriangulos + " triangulos");
+
+			double tempoAnterior = glfwGetTime();
+			double tempoTitulo = 0;
+			float angulo = 0;
 			while (!glfwWindowShouldClose(window)) {
-				
-				if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-					glfwSetWindowShouldClose(window, true);
+
+				// Controle do tempo: dt = segundos desde o quadro anterior
+				double agora = glfwGetTime();
+				double dt = agora - tempoAnterior;
+				tempoAnterior = agora;
+
 				int[] w = new int[1], h = new int[1];
 				glfwGetFramebufferSize(window, w, h);
 				if (h[0] == 0) {
 					glfwPollEvents();
 					continue;
 				}
-				
-				
+
+				animador.atualizar(dt);
+				if (girando)
+					angulo += dt * 25;
+
+				corpo.atualizarPose(animador.quadroAtual(), animador.proximoQuadro(), animador.fracao());
+				if (arma != null)
+					arma.atualizarPose(animador.quadroAtual(), animador.proximoQuadro(), animador.fracao());
+
+				// Atualiza o título 10 vezes por segundo
+				if (agora - tempoTitulo >= 0.1) {
+					tempoTitulo = agora;
+					String nomeSkin = skins.isEmpty() ? "sem textura" : Skins.nomeSemExtensao(skins.get(skinIndice));
+					glfwSetWindowTitle(window, "MD2 | " + animador.descricao() + " | skin " + nomeSkin);
+				}
+
 				glViewport(0, 0, w[0], h[0]);
 				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 				glMatrixMode(GL_PROJECTION);
 				glLoadIdentity();
 				double aspect = (double) w[0] / h[0];
-				//System.out.println("w0 "+w[0]+" h0 "+h[0]);
 				glFrustum(-aspect * .7, aspect * .7, -.7, .7, 1, 100);
 				glMatrixMode(GL_MODELVIEW);
-				
+
 				glLoadIdentity();
-				glTranslatef(0, 0, -4);
-				glRotatef((float) ((glfwGetTime() - start) * 25), 0, 1, 0);
-				
-				if(glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-					glRotatef(0, 1, 0, 0);
-				}else {
-					glRotatef(20, 1, 0, 0);
-				}
-				
+				glTranslatef(0, 0, -5);
+				glRotatef(20, 1, 0, 0);          // inclinação fixa da câmera
+				glRotatef(angulo, 0, 1, 0);      // rotação automática (tecla R)
+				glRotatef(-150, 0, 1, 0);        // com angulo 0, o Ogro fica de frente para a câmera
+				glScalef(0.07f, 0.07f, 0.07f);
+				glRotatef(-90, 1, 0, 0);         // Quake tem Z para cima; OpenGL aqui usa Y
+
+				// W segurado = wireframe (como no código-base)
 				glPolygonMode(GL_FRONT_AND_BACK, glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS ? GL_LINE : GL_FILL);
-				
+
+				glEnable(GL_TEXTURE_2D);
 				glColor3f(1, 1, 1);
-				//System.out.println("textureId "+textureId);
-				glEnable(GL_COLOR_MATERIAL);
-				glEnable (GL_TEXTURE_2D);
-				glBindTexture(GL_TEXTURE_2D, textureId);
-				
-				glTranslatef(0, -1, 0);
-				glScaled(0.05f,0.05f,0.05f);
-				mesh.draw();
-				
-				//glTranslatef(0, 0, -6);
-				
-				//glBindTexture(GL_TEXTURE_2D, textureId2);
-				//glScaled(0.01f,0.01f,0.01f);
-				
-				//mesh2.draw();
+				corpo.draw();
+				if (arma != null)
+					arma.draw();
+
 				glfwSwapBuffers(window);
 				glfwPollEvents();
 			}
+		} catch (IOException e) {
+			System.err.println("Erro ao abrir MD2: " + e.getMessage());
 		} finally {
+			Callbacks.glfwFreeCallbacks(window);
 			glfwDestroyWindow(window);
 			glfwTerminate();
 		}
